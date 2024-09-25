@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank System</title>
+    <style>
+        .hidden { display: none; }
+        .show { display: block; }
+    </style>
+</head>
+<body>
+    <h1>Bank System</h1>
+    
+    <!-- Registration Form -->
+    <div id="registration-form">
+        <h2>Register</h2>
+        <input id="reg-id" type="text" placeholder="ID Number">
+        <input id="reg-name" type="text" placeholder="Name">
+        <input id="reg-phone" type="text" placeholder="Phone Number">
+        <input id="reg-email" type="email" placeholder="Email">
+        <button onclick="registerMember()">Register</button>
+        <p id="reg-message"></p>
+    </div>
+    
+    <!-- Login Form -->
+    <div id="login-form">
+        <h2>Login</h2>
+        <input id="login-id" type="text" placeholder="ID Number">
+        <input id="login-password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <p id="login-message"></p>
+    </div>
+    
+    <!-- Member Actions -->
+    <div id="member-actions" class="hidden">
+        <button onclick="showDepositForm()">Deposit</button>
+        <button onclick="showWithdrawForm()">Withdraw</button>
+        <button onclick="showBorrowLoanForm()">Borrow Loan</button>
+        <button onclick="showRepayLoanForm()">Repay Loan</button>
+        <button onclick="showCheckBalance()">Check Balance</button>
+        <button onclick="showTransactionHistory()">View Transaction History</button>
+        <button onclick="logout()">Logout</button>
+        
+        <!-- Deposit Form -->
+        <div id="deposit-form" class="hidden">
+            <h3>Deposit</h3>
+            <input id="deposit-amount" type="number" placeholder="Amount">
+            <button onclick="deposit()">Deposit</button>
+            <p id="deposit-message"></p>
+        </div>
+        
+        <!-- Withdraw Form -->
+        <div id="withdraw-form" class="hidden">
+            <h3>Withdraw</h3>
+            <input id="withdraw-amount" type="number" placeholder="Amount">
+            <select id="withdraw-method">
+                <option value="mpesa">MPesa</option>
+                <option value="bank">Bank Account</option>
+            </select>
+            <button onclick="withdraw()">Withdraw</button>
+            <p id="withdraw-message"></p>
+        </div>
+        
+        <!-- Borrow Loan Form -->
+        <div id="borrow-loan-form" class="hidden">
+            <h3>Borrow Loan</h3>
+            <input id="loan-amount" type="number" placeholder="Amount">
+            <button onclick="borrowLoan()">Borrow</button>
+            <p id="loan-message"></p>
+        </div>
+        
+        <!-- Repay Loan Form -->
+        <div id="repay-loan-form" class="hidden">
+            <h3>Repay Loan</h3>
+            <input id="repay-amount" type="number" placeholder="Amount">
+            <button onclick="repayLoan()">Repay</button>
+            <p id="repay-message"></p>
+        </div>
+
+        <!-- Balance Info -->
+        <div id="balance-info" class="hidden"></div>
+        <!-- Transaction History -->
+        <div id="transaction-history" class="hidden"></div>
+    </div>
+
+    <script>
+        class Member {
+            constructor(id, name, phone, email) {
+                this.id = id;
+                this.name = name;
+                this.phone = phone;
+                this.email = email;
+                this.password = Math.floor(Math.random() * 9000) + 1000; // Random 4-digit password
+                this.passwordSet = false;
+                this.failedAttempts = 0;
+                this.lockedUntil = null;
+                this.balance = 0;
+                this.loanBalance = 0;
+                this.loanTakenDate = null;
+                this.interestRateInitial = 7.0;
+                this.dailyInterestRate = 0.5;
+                this.transactionHistory = [];
+            }
+
+            setNewPassword(newPassword) {
+                if (newPassword.length === 4 && !isNaN(newPassword)) {
+                    this.password = parseInt(newPassword);
+                    this.passwordSet = true;
+                    return "Password updated successfully!";
+                } else {
+                    return "Invalid password! Must be a 4-digit number.";
+                }
+            }
+
+            deposit(amount) {
+                if (amount > 0) {
+                    this.balance += amount;
+                    this.transactionHistory.push(`Deposited ${amount}`);
+                    return `${amount} deposited. New balance is ${this.balance}.`;
+                } else {
+                    return "Deposit amount must be positive.";
+                }
+            }
+
+            withdraw(amount, method) {
+                if (!this.mpesaNumber && !this.bankAccount) {
+                    return "No MPesa number or bank account details provided.";
+                }
+                if (amount > this.balance) {
+                    return "Insufficient balance!";
+                } else {
+                    this.balance -= amount;
+                    this.transactionHistory.push(`Withdrawn ${amount}`);
+                    return `${amount} withdrawn. New balance is ${this.balance}. Withdrawn to ${method === 'mpesa' ? 'MPesa' : 'bank account'}.`;
+                }
+            }
+
+            checkBalance() {
+                return `The current balance is ${this.balance}. The outstanding loan is ${this.loanBalance}.`;
+            }
+
+            getLoanLimit() {
+                return this.balance * 0.70;
+            }
+
+            borrowLoan(amount) {
+                const loanLimit = this.getLoanLimit();
+                if (this.loanBalance + amount > loanLimit) {
+                    return `Loan request denied! You can borrow up to ${loanLimit - this.loanBalance}.`;
+                } else {
+                    const interest = amount * (this.interestRateInitial / 100);
+                    this.loanBalance += amount + interest;
+                    this.loanTakenDate = new Date();
+                    return `Borrowed loan of ${amount} with initial interest ${interest}.`;
+                }
+            }
+
+            repayLoan(amount) {
+                if (amount > this.loanBalance) {
+                    this.balance += (amount - this.loanBalance);
+                    this.transactionHistory.push(`Repaid loan of ${this.loanBalance}`);
+                    this.loanBalance = 0;
+                    this.loanTakenDate = null;
+                    return `Repayment of ${amount} successful. Remaining loan balance is ${this.loanBalance}.`;
+                } else {
+                    let daysOverdue = 0;
+                    if (this.loanTakenDate) {
+                        daysOverdue = Math.floor((new Date() - this.loanTakenDate) / (1000 * 60 * 60 * 24)) - 30;
+                        if (daysOverdue < 0) daysOverdue = 0;
+                    }
+                    const overdueInterest = this.loanBalance * (this.dailyInterestRate / 100) * daysOverdue;
+                    this.loanBalance -= amount;
+                    this.transactionHistory.push(`Repaid loan of ${amount}, overdue interest ${overdueInterest}`);
+                    if (this.loanBalance < 0) {
+                        this.balance += (-this.loanBalance);
+                        this.loanBalance = 0;
+                    }
+                    return `Repayment of ${amount} successful. Remaining loan balance is ${this.loanBalance}. Overdue interest applied: ${overdueInterest}.`;
+                }
+            }
+
+            viewTransactionHistory() {
+                return this.transactionHistory.length ? this.transactionHistory.join('<br>') : "No transactions have been made.";
+            }
+
+            lockAccount() {
+                this.lockedUntil = new Date(new Date().getTime() + 10 * 60000); // Lock for 10 minutes
+                return "Your account is locked due to multiple failed login attempts. Please try again after 10 minutes.";
+            }
+        }
+
+        class Bank {
+            constructor() {
+                this.members = {};
+                this.currentMember = null;
+            }
+
+            registerMember() {
+                const id = document.getElementById('reg-id').value;
+                const name = document.getElementById('reg-name').value;
+                const phone = document.getElementById('reg-phone').value;
+                const email = document.getElementById('reg-email').value;
+                
+                if (this.members[id]) {
+                    document.getElementById('reg-message').innerText = "Member with this ID already exists!";
+                } else {
+                    const newMember = new Member(id, name, phone, email);
+                    this.members[id] = newMember;
+                    document.getElementById('reg-message').innerText = `Registration successful! Your temporary password is ${newMember.password}. You must change it after logging in.`;
+                }
+            }
+
+            login() {
+                const id = document.getElementById('login-id').value;
+                const password = parseInt(document.getElementById('login-password').value);
+
+                if (this.members[id]) {
+                    const member = this.members[id];
+                    if (member.lockedUntil && new Date() < member.lockedUntil) {
+                        document.getElementById('login-message').innerText = `Account is locked until ${member.lockedUntil}.`;
+                        return;
+                    }
+
+                    if (!member.passwordSet) {
+                        if (password === member.password) {
+                            member.setNewPassword(prompt("Create a new password (4 digits):"));
+                            this.currentMember = member;
+                            document.getElementById('login-message').innerText = "Logged in successfully!";
+                            this.showMemberActions();
+                        } else {
+                            member.failedAttempts++;
+                            if (member.failedAttempts >= 3) {
+                                member.lockAccount();
+                                document.getElementById('login-message').innerText = member.lockAccount();
+                            } else {
+                                document.getElementById('login-message').innerText = `Incorrect password! You have ${3 - member.failedAttempts} chance(s) left.`;
+                            }
+                        }
+                    } else {
+                        if (password === member.password) {
+                            member.failedAttempts = 0;
+                            this.currentMember = member;
+                            document.getElementById('login-message').innerText = "Logged in successfully!";
+                            this.showMemberActions();
+                        } else {
+                            member.failedAttempts++;
+                            if (member.failedAttempts >= 3) {
+                                member.lockAccount();
+                                document.getElementById('login-message').innerText = member.lockAccount();
+                            } else {
+                                document.getElementById('login-message').innerText = `Incorrect password! You have ${3 - member.failedAttempts} chance(s) left.`;
+                            }
+                        }
+                    }
+                } else {
+                    document.getElementById('login-message').innerText = "Member not found!";
+                }
+            }
+
+            showMemberActions() {
+                document.getElementById('registration-form').classList.add('hidden');
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('member-actions').classList.remove('hidden');
+            }
+
+            showDepositForm() {
+                this.toggleFormVisibility('deposit-form');
+            }
+
+            showWithdrawForm() {
+                this.toggleFormVisibility('withdraw-form');
+            }
+
+            showBorrowLoanForm() {
+                this.toggleFormVisibility('borrow-loan-form');
+            }
+
+            showRepayLoanForm() {
+                this.toggleFormVisibility('repay-loan-form');
+            }
+
+            showCheckBalance() {
+                document.getElementById('balance-info').innerHTML = this.currentMember.checkBalance();
+                document.getElementById('balance-info').classList.remove('hidden');
+            }
+
+            showTransactionHistory() {
+                document.getElementById('transaction-history').innerHTML = this.currentMember.viewTransactionHistory();
+                document.getElementById('transaction-history').classList.remove('hidden');
+            }
+
+            toggleFormVisibility(formId) {
+                const forms = ['deposit-form', 'withdraw-form', 'borrow-loan-form', 'repay-loan-form'];
+                forms.forEach(form => {
+                    if (form === formId) {
+                        document.getElementById(form).classList.toggle('hidden');
+                    } else {
+                        document.getElementById(form).classList.add('hidden');
+                    }
+                });
+            }
+
+            deposit() {
+                const amount = parseFloat(document.getElementById('deposit-amount').value);
+                document.getElementById('deposit-message').innerText = this.currentMember.deposit(amount);
+            }
+
+            withdraw() {
+                const amount = parseFloat(document.getElementById('withdraw-amount').value);
+                const method = document.getElementById('withdraw-method').value;
+                document.getElementById('withdraw-message').innerText = this.currentMember.withdraw(amount, method);
+            }
+
+            borrowLoan() {
+                const amount = parseFloat(document.getElementById('loan-amount').value);
+                document.getElementById('loan-message').innerText = this.currentMember.borrowLoan(amount);
+            }
+
+            repayLoan() {
+                const amount = parseFloat(document.getElementById('repay-amount').value);
+                document.getElementById('repay-message').innerText = this.currentMember.repayLoan(amount);
+            }
+
+            logout() {
+                this.currentMember = null;
+                document.getElementById('registration-form').classList.remove('hidden');
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('member-actions').classList.add('hidden');
+                document.getElementById('deposit-form').classList.add('hidden');
+                document.getElementById('withdraw-form').classList.add('hidden');
+                document.getElementById('borrow-loan-form').classList.add('hidden');
+                document.getElementById('repay-loan-form').classList.add('hidden');
+                document.getElementById('balance-info').classList.add('hidden');
+                document.getElementById('transaction-history').classList.add('hidden');
+            }
+        }
+
+        const bank = new Bank();
+
+        function registerMember() {
+            bank.registerMember();
+        }
+
+        function login() {
+            bank.login();
+        }
+
+        function showDepositForm() {
+            bank.showDepositForm();
+        }
+
+        function showWithdrawForm() {
+            bank.showWithdrawForm();
+        }
+
+        function showBorrowLoanForm() {
+            bank.showBorrowLoanForm();
+        }
+
+        function showRepayLoanForm() {
+            bank.showRepayLoanForm();
+        }
+
+        function showCheckBalance() {
+            bank.showCheckBalance();
+        }
+
+        function showTransactionHistory() {
+            bank.showTransactionHistory();
+        }
+
+        function deposit() {
+            bank.deposit();
+        }
+
+        function withdraw() {
+            bank.withdraw();
+        }
+
+        function borrowLoan() {
+            bank.borrowLoan();
+        }
+
+        function repayLoan() {
+            bank.repayLoan();
+        }
+
+        function logout() {
+            bank.logout();
+        }
+    </script>
+</body>
+</html>
+
